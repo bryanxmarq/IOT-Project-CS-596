@@ -5,12 +5,12 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 
-// Pin Definitions
+// pin Definitions
 #define RED_LED_PIN 26
 #define GREEN_LED_PIN 27
 #define SERVO_PIN 13
 
-// Create the CAP1188 touch sensor object
+// create the CAP1188 touch sensor object
 Adafruit_CAP1188 cap = Adafruit_CAP1188();
 Servo myServo;
 
@@ -18,17 +18,18 @@ Servo myServo;
 const char* ssid = "NETGEAR86";
 const char* password = "**********";
 
-// Flask server URL
+// flask server URL
 const char* serverURL = "http://18.191.11.199:5000";
 
-String correctCode = "1234";      // Define a correct code for unlocking
-String enteredCode = "";          // Code entered by user
-unsigned long lockedOutUntil = 0; // Time until lockout ends (in ms)
+String correctCode = "1234";      // define correct code for unlocking
+String enteredCode = "";          // code entered by user
+unsigned long lockedOutUntil = 0; // time until lockout ends (in ms)
 
-// Function to send status and code to server
+// function to send status and code to server
 String sendToServer(String status, String code) {
   String responseText = "";
-
+  
+  // check if wifi is connected
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
     String url = String(serverURL) + "/?status=" + status + "&code=" + code;
@@ -39,6 +40,7 @@ String sendToServer(String status, String code) {
     http.begin(url);
     int httpResponseCode = http.GET();
 
+    // if response received successfully
     if (httpResponseCode > 0) {
       responseText = http.getString();
       Serial.print("Server response: ");
@@ -59,7 +61,7 @@ String sendToServer(String status, String code) {
 void setup() {
   Serial.begin(115200);
   delay(1000);
-
+  // connect to wifi
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
@@ -67,14 +69,17 @@ void setup() {
   }
   Serial.println("Connected to WiFi!");
 
+  // initialize CAP1188 
   if (!cap.begin()) {
     Serial.println("CAP1188 not detected, check connections!");
     while (1);
   }
 
+  // set led with red led on at initialization
   pinMode(RED_LED_PIN, OUTPUT);
   pinMode(GREEN_LED_PIN, OUTPUT);
 
+  //servo set to lock position
   myServo.attach(SERVO_PIN);
   myServo.write(90); // Locked position
 
@@ -85,13 +90,14 @@ void setup() {
 }
 
 void loop() {
-  // If locked out, don't process input
+  // if locked out, skip input
   if (millis() < lockedOutUntil) {
     Serial.println("Device is locked out. Please wait...");
     delay(1000);
     return;
   }
 
+  // read which sensor lights were touched
   uint8_t touched = cap.touched();
 
   for (int i = 0; i < 8; i++) {
@@ -105,24 +111,28 @@ void loop() {
     }
   }
 
+  // process code when 4 digits are entered
   if (enteredCode.length() >= 4) {
     if (enteredCode == correctCode) {
       Serial.println("Correct code! Unlocking...");
       sendToServer("unlocked", enteredCode);
-
+      
+      // unlock servo and led green
       myServo.write(180);  // Unlock position
       digitalWrite(GREEN_LED_PIN, HIGH);
       digitalWrite(RED_LED_PIN, LOW);
       delay(5000);
 
+      // re-lock
       myServo.write(90);  // Lock position
       digitalWrite(GREEN_LED_PIN, LOW);
       digitalWrite(RED_LED_PIN, HIGH);
     } else {
+      // incorrect code 
       Serial.println("Incorrect code!");
       String response = sendToServer("attempt", enteredCode);
 
-      // Check for "LOCKED OUT" in server response
+      // check for lock out in server response
       if (response.indexOf("LOCKED OUT for") != -1) {
         int secondsIndex = response.indexOf("seconds");
         int forIndex = response.indexOf("for");
@@ -132,11 +142,12 @@ void loop() {
           int lockoutSeconds = secondsStr.toInt();
           Serial.print("Parsed lockout time: ");
           Serial.println(lockoutSeconds);
+          // set lockout timer
           lockedOutUntil = millis() + (lockoutSeconds * 1000);
         }
       }
 
-      // Blink red LED on wrong code
+      // blink red LED on wrong code
       for (int i = 0; i < 3; i++) {
         digitalWrite(RED_LED_PIN, HIGH);
         delay(200);
@@ -145,7 +156,7 @@ void loop() {
       }
     }
 
-    enteredCode = ""; // Reset code
+    enteredCode = ""; // reset code
   }
 
   delay(100);
