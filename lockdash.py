@@ -7,7 +7,7 @@ app = Flask(__name__)
 # in-memory logs and counters
 attempt_log = []
 fail_counter = defaultdict(int)
-lockout_time = defaultdict(datetime)  # Track lockout time per code
+lockout_time = defaultdict(datetime)  # track lockout time per code
 
 # suspicious code patterns
 suspicious_patterns = {"0000", "1111", "8888"}
@@ -29,6 +29,7 @@ def handle_request():
 
     # check if code is locked out
     if status == "attempt":
+        # check if its currently locked out
         if code in lockout_time and now < lockout_time[code]:
             wait_seconds = int((lockout_time[code] - now).total_seconds())
             response_note = f"LOCKED OUT for {wait_seconds} seconds due to repeated failures."
@@ -37,21 +38,23 @@ def handle_request():
 
         fail_counter[code] += 1
 
+        #if max attempt reached apply lockout
         if fail_counter[code] >= MAX_ATTEMPTS:
             lockout_time[code] = now + LOCKOUT_DURATION
             response_note = f"Code {code} has been LOCKED OUT for {LOCKOUT_DURATION.total_seconds()} seconds"
             print(response_note)
 
+        # flag suspicious pattern
         elif code in suspicious_patterns:
             response_note = f"Suspicious pattern detected: {code}"
             print(response_note)
 
     elif status == "unlocked":
-        # Reset on successful unlock
+        # reset on successful unlock
         fail_counter[code] = 0
         lockout_time.pop(code, None)
 
-    # Log attempt
+    # log attempt
     attempt_log.append({
         "timestamp": timestamp,
         "status": status,
@@ -100,7 +103,8 @@ def dashboard():
     </html>
     """
     return render_template_string(html_template, log=attempt_log)
-
+    
+# run flask server
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
 
