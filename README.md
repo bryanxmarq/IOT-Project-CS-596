@@ -1,6 +1,6 @@
 # Digital Lock - IOT Project
 
-Participants: Bryan Marquez Aguilar and Brian Guzman
+Participants: Bryan Marquez Aguilar
 
 Video:
 
